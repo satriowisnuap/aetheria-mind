@@ -311,8 +311,8 @@ export const Orb = memo(function Orb({ id, text, config, posX, posY, onBurn, onU
               style={{
                 fontFamily: 'var(--font-dm)',
                 fontSize: '11px',
-                color: 'var(--text-primary)',
-                opacity: 0.7,
+                color: '#ffffff',
+                opacity: 0.9,
                 textAlign: 'center',
                 lineHeight: 1.4,
                 display: '-webkit-box',
