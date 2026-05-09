@@ -18,6 +18,8 @@ interface OrbProps {
   gravityWells?: { id: string; x: number; y: number }[];
   isMergeCandidate?: boolean;
   mergeTargetPercent?: { x: number; y: number } | null;
+  isPaused?: boolean;
+  isHighlighted?: boolean;
 }
 
 interface Particle {
@@ -36,7 +38,7 @@ const PARTICLES: Particle[] = Array.from({ length: 12 }, (_, i) => ({
   isSpiral: Math.random() > 0.5,
 }));
 
-export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, onTap, gravityWells, isMergeCandidate, mergeTargetPercent }: OrbProps) {
+export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, onTap, gravityWells, isMergeCandidate, mergeTargetPercent, isPaused, isHighlighted }: OrbProps) {
   const [burning, setBurning] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
   const [showRing, setShowRing] = useState(false);
@@ -57,7 +59,7 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
   const constraintsRef = useRef(null);
 
   useAnimationFrame((time) => {
-    if (isDragging.current || burning || mergeTargetPercent) return;
+    if (isDragging.current || burning || mergeTargetPercent || isPaused) return;
     
     frameRef.current++;
     const vpWidth = window.innerWidth;
@@ -261,7 +263,7 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
               border: `1px solid ${config.borderColor}99`,
-              boxShadow: isLongPress 
+              boxShadow: isLongPress || isHighlighted
                 ? `0 0 60px ${config.glowColor}` 
                 : atHorizon
                 ? `0 0 40px ${config.glowColor}, 0 0 80px ${config.glowColor}66`

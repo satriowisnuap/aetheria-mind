@@ -14,6 +14,9 @@ import OrbDetailPanel from '@/components/OrbDetailPanel';
 import { useOrbs, type OrbData } from '@/hooks/useOrbs';
 import ConstellationLayer from '@/components/ConstellationLayer';
 import ConstellationToggle from '@/components/ConstellationToggle';
+import HandTracker from '@/components/HandTracker';
+import HandModeToggle from '@/components/HandModeToggle';
+import { type GestureType } from '@/hooks/useHandTracking';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
@@ -26,6 +29,16 @@ export default function Home() {
   const [gravityWells, setGravityWells] = useState<{ id: string; x: number; y: number }[]>([]);
   const [isOrbInHorizon, setIsOrbInHorizon] = useState(false);
   const [constellationMode, setConstellationMode] = useState(false);
+  const [handMode, setHandMode] = useState(false);
+  const [fingerPos, setFingerPos] = useState<{ x: number, y: number } | null>(null);
+  const [activeGesture, setActiveGesture] = useState<GestureType>('none');
+  const [highlightedOrbId, setHighlightedOrbId] = useState<string | null>(null);
+  const [grabbedOrbId, setGrabbedOrbId] = useState<string | null>(null);
+  
+  const fingerHistory = useRef<{ x: number, y: number, time: number }[]>([]);
+  const hoverTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastGesture = useRef<GestureType>('none');
+  const lastHoveredId = useRef<string | null>(null);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const newWell = {
@@ -112,6 +125,101 @@ export default function Home() {
   const handleMergeCancel = () => {
     setMergeCandidate(null);
   };
+
+  const handleGesture = useCallback((gesture: GestureType, pos: { x: number, y: number } | null) => {
+    setActiveGesture(gesture);
+    setFingerPos(pos);
+    
+    if (!pos) {
+      fingerHistory.current = [];
+      lastGesture.current = gesture;
+      return;
+    }
+    
+    // Update history
+    fingerHistory.current.push({ x: pos.x, y: pos.y, time: Date.now() });
+    if (fingerHistory.current.length > 5) {
+      fingerHistory.current.shift();
+    }
+    
+    // Point -> hover logic
+    if (gesture === 'point') {
+      let hoveredId: string | null = null;
+      
+      // Check overlap with orbs
+      for (const [id, orbPos] of Array.from(orbPositions.current.entries())) {
+        const orb = orbs.find(o => o.id === id);
+        if (!orb) continue;
+        const r = orb.config.size / 2;
+        const cx = orbPos.x + r;
+        const cy = orbPos.y + r;
+        
+        const dist = Math.sqrt(Math.pow(pos.x - cx, 2) + Math.pow(pos.y - cy, 2));
+        if (dist < r * 1.5) { // generous hitbox
+          hoveredId = id;
+          break;
+        }
+      }
+      
+      if (hoveredId !== lastHoveredId.current) {
+        if (hoverTimer.current) clearTimeout(hoverTimer.current);
+        lastHoveredId.current = hoveredId;
+        setHighlightedOrbId(null);
+        
+        if (hoveredId) {
+          hoverTimer.current = setTimeout(() => {
+            setHighlightedOrbId(hoveredId);
+          }, 1500);
+        }
+      }
+    } else if (lastGesture.current === 'point') {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      lastHoveredId.current = null;
+    }
+    
+    // Pinch -> grab logic
+    if (gesture === 'pinch') {
+      if (lastGesture.current !== 'pinch') {
+        // Just pinched
+        if (highlightedOrbId && !grabbedOrbId) {
+          setGrabbedOrbId(highlightedOrbId);
+        }
+      }
+      
+      // Move grabbed orb
+      if (grabbedOrbId) {
+        const vpWidth = window.innerWidth;
+        const vpHeight = window.innerHeight;
+        const grabbedOrb = orbs.find(o => o.id === grabbedOrbId);
+        if (grabbedOrb) {
+          const r = grabbedOrb.config.size / 2;
+          const targetX = pos.x - r;
+          const targetY = pos.y - r;
+          updateOrbPosition(grabbedOrbId, (targetX / vpWidth) * 100, (targetY / vpHeight) * 100);
+          orbPositions.current.set(grabbedOrbId, { x: targetX, y: targetY });
+        }
+      }
+    } else if (lastGesture.current === 'pinch') {
+      // Released pinch
+      if (grabbedOrbId) {
+        // Check velocity for throw
+        if (fingerHistory.current.length > 1) {
+          const first = fingerHistory.current[0];
+          const last = fingerHistory.current[fingerHistory.current.length - 1];
+          const vy = (last.y - first.y) / (fingerHistory.current.length - 1); 
+          
+          if (vy < -8) { // fast upward throw
+            burnOrb(grabbedOrbId);
+          }
+        }
+        setGrabbedOrbId(null);
+        setHighlightedOrbId(null);
+      }
+    }
+    
+    lastGesture.current = gesture;
+
+  }, [orbs, grabbedOrbId, highlightedOrbId, updateOrbPosition, burnOrb]);
 
   return (
     <>
@@ -245,6 +353,8 @@ export default function Home() {
                     gravityWells={gravityWells}
                     isMergeCandidate={isMergeTarget && !isMerging}
                     mergeTargetPercent={targetPercent}
+                    isPaused={activeGesture === 'palm'}
+                    isHighlighted={orb.id === highlightedOrbId || orb.id === grabbedOrbId}
                   />
                 );
               })}
@@ -267,6 +377,41 @@ export default function Home() {
             active={constellationMode} 
             onToggle={() => setConstellationMode(!constellationMode)} 
           />
+
+          <HandTracker active={handMode} onGesture={handleGesture} />
+          
+          <HandModeToggle 
+            active={handMode} 
+            onToggle={() => {
+              setHandMode(!handMode);
+              if (handMode) {
+                setHighlightedOrbId(null);
+                setGrabbedOrbId(null);
+                setActiveGesture('none');
+              }
+            }} 
+          />
+
+          {handMode && fingerPos && (
+            <div 
+              className="fixed rounded-full pointer-events-none z-[100] bg-cosmic-teal blur-sm transition-all duration-75"
+              style={{
+                left: fingerPos.x - 10,
+                top: fingerPos.y - 10,
+                width: 20,
+                height: 20,
+                boxShadow: activeGesture === 'pinch' ? '0 0 20px #22D3EE' : '0 0 10px #22D3EE'
+              }}
+            />
+          )}
+
+          {activeGesture === 'palm' && (
+            <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-void/50 backdrop-blur-md rounded-full border border-glass-border">
+              <span style={{ fontFamily: 'var(--font-dm)', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                ⏸ paused
+              </span>
+            </div>
+          )}
         </>
       )}
     </>
