@@ -13,6 +13,7 @@ interface OrbProps {
   posY: number;
   onBurn: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
+  onTap?: () => void;
   isMergeCandidate?: boolean;
   mergeTargetPercent?: { x: number; y: number } | null;
 }
@@ -20,26 +21,68 @@ interface OrbProps {
 interface Particle {
   id: number;
   angle: number;
+  size: number;
+  isWhite: boolean;
+  isSpiral: boolean;
 }
 
-const PARTICLES: Particle[] = Array.from({ length: 8 }, (_, i) => ({
+const PARTICLES: Particle[] = Array.from({ length: 12 }, (_, i) => ({
   id: i,
-  angle: (i / 8) * 360,
+  angle: (i / 12) * 360,
+  size: Math.random() * 5 + 3,
+  isWhite: Math.random() > 0.5,
+  isSpiral: Math.random() > 0.5,
 }));
 
-export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, isMergeCandidate, mergeTargetPercent }: OrbProps) {
+export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, onTap, isMergeCandidate, mergeTargetPercent }: OrbProps) {
   const [burning, setBurning] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
+  const [showRing, setShowRing] = useState(false);
+  const [isLongPress, setIsLongPress] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  
   const { duration, delay } = getFloatAnimation();
   const y = useMotionValue(0);
   const constraintsRef = useRef(null);
 
+  const startLongPressTimer = useCallback((e: React.PointerEvent) => {
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    longPressTimer.current = setTimeout(() => {
+      setIsLongPress(true);
+    }, 600);
+  }, []);
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    clearLongPressTimer();
+    
+    if (!isLongPress && !burning) {
+      const deltaX = Math.abs(e.clientX - dragStartPos.current.x);
+      const deltaY = Math.abs(e.clientY - dragStartPos.current.y);
+      if (deltaX < 5 && deltaY < 5) {
+        onTap?.();
+      }
+    }
+    setIsLongPress(false);
+  }, [isLongPress, burning, onTap, clearLongPressTimer]);
+
   const handleDragEnd = useCallback(
     (_: unknown, info: { point: { x: number; y: number }; offset: { x: number; y: number } }) => {
+      clearLongPressTimer();
+      setIsLongPress(false);
+      
       if (info.offset.y < -80) {
         setShowParticles(true);
+        setShowRing(true);
         setBurning(true);
-        setTimeout(() => onBurn(id), 600);
+        setTimeout(() => onBurn(id), 800);
       } else {
         const vpWidth = window.innerWidth;
         const vpHeight = window.innerHeight;
@@ -50,7 +93,7 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
         onUpdatePosition(id, (newX / vpWidth) * 100, (newY / vpHeight) * 100);
       }
     },
-    [id, onBurn, onUpdatePosition, posX, posY]
+    [id, onBurn, onUpdatePosition, posX, posY, clearLongPressTimer]
   );
 
   return (
@@ -106,7 +149,12 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
           dragMomentum
           dragTransition={{ bounceStiffness: 80, bounceDamping: 15 }}
           whileDrag={{ scale: 1.08 }}
+          onDragStart={clearLongPressTimer}
+          onDrag={clearLongPressTimer}
           onDragEnd={handleDragEnd}
+          onPointerDown={startLongPressTimer}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={clearLongPressTimer}
           style={{
             position: 'absolute',
             width: config.size,
@@ -116,6 +164,28 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
             zIndex: 20,
           }}
         >
+          <AnimatePresence>
+            {isLongPress && !burning && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                style={{
+                  position: 'absolute',
+                  top: -30,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'var(--font-dm)',
+                  fontSize: '11px',
+                  color: 'var(--text-secondary)',
+                  pointerEvents: 'none',
+                }}
+              >
+                flick up to release
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div
             style={{
               width: config.size,
@@ -125,13 +195,16 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
               border: `1px solid ${config.borderColor}99`,
-              boxShadow: `0 0 20px ${config.glowColor}, 0 0 60px ${config.glowColor}33`,
+              boxShadow: isLongPress 
+                ? `0 0 60px ${config.glowColor}` 
+                : `0 0 20px ${config.glowColor}, 0 0 60px ${config.glowColor}33`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '0 12px',
               overflow: 'hidden',
               position: 'relative',
+              transition: 'box-shadow 0.3s ease',
             }}
           >
             <p
@@ -180,23 +253,52 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
               }}
             >
               {PARTICLES.map((p) => (
-                <div
+                <motion.div
                   key={p.id}
                   className="burn-particle"
+                  initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+                  animate={{
+                    x: Math.cos((p.angle * Math.PI) / 180) * (p.isSpiral ? 80 : 120),
+                    y: Math.sin((p.angle * Math.PI) / 180) * (p.isSpiral ? 80 : 120),
+                    rotate: p.isSpiral ? 360 : 0,
+                    opacity: 0,
+                    scale: 0,
+                  }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
                   style={{
                     position: 'absolute',
-                    width: 6,
-                    height: 6,
+                    width: p.size,
+                    height: p.size,
                     borderRadius: '50%',
-                    background: config.glowColor,
-                    top: -3,
-                    left: -3,
-                    '--angle': `${p.angle}deg`,
-                  } as React.CSSProperties}
+                    background: p.isWhite ? '#ffffff' : config.glowColor,
+                    top: -p.size / 2,
+                    left: -p.size / 2,
+                  }}
                 />
               ))}
             </div>
           )}
+
+          <AnimatePresence>
+            {showRing && (
+              <motion.div
+                initial={{ scale: 1, opacity: 0.5 }}
+                animate={{ scale: 3, opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderRadius: '50%',
+                  border: `2px solid ${config.glowColor}`,
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>

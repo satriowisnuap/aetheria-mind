@@ -10,7 +10,8 @@ import EmptyState from '@/components/EmptyState';
 import ThemeToggle from '@/components/ThemeToggle';
 import AuthButton from '@/components/AuthButton';
 import MergePrompt from '@/components/MergePrompt';
-import { useOrbs } from '@/hooks/useOrbs';
+import OrbDetailPanel from '@/components/OrbDetailPanel';
+import { useOrbs, type OrbData } from '@/hooks/useOrbs';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
@@ -19,6 +20,7 @@ export default function Home() {
   const orbPositions = useRef(new Map<string, { x: number; y: number }>());
   const [mergeCandidate, setMergeCandidate] = useState<{ id1: string, id2: string, x: number, y: number } | null>(null);
   const [isMerging, setIsMerging] = useState(false);
+  const [selectedOrb, setSelectedOrb] = useState<OrbData | null>(null);
 
   useEffect(() => {
     const vpWidth = window.innerWidth;
@@ -147,6 +149,7 @@ export default function Home() {
                     posY={orb.posY}
                     onBurn={burnOrb}
                     onUpdatePosition={handleUpdateOrbPosition}
+                    onTap={() => setSelectedOrb(orb)}
                     isMergeCandidate={isMergeTarget && !isMerging}
                     mergeTargetPercent={targetPercent}
                   />
@@ -156,6 +159,16 @@ export default function Home() {
           </div>
 
           <AetherInput onSubmit={addOrb} />
+
+          <AnimatePresence>
+            {selectedOrb && (
+              <OrbDetailPanel
+                orb={selectedOrb}
+                onClose={() => setSelectedOrb(null)}
+                onBurn={burnOrb}
+              />
+            )}
+          </AnimatePresence>
         </>
       )}
     </>
