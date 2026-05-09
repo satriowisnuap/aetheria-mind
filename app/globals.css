@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Aetheria Theme Variables ───────────────────────────── */
+
+.theme-dark {
+  --void: #000000;
+  --nebula-purple: #6B21A8;
+  --nebula-violet: #A855F7;
+  --star-gold: #FDE047;
+  --cosmic-teal: #22D3EE;
+  --glass-white: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --text-primary: rgba(255, 255, 255, 0.85);
+  --text-secondary: rgba(255, 255, 255, 0.45);
+}
+
+.theme-light {
+  --void: #F8FAFC;
+  --nebula-purple: #7C3AED;
+  --nebula-violet: #C084FC;
+  --star-gold: #FACC15;
+  --cosmic-teal: #06B6D4;
+  --glass-white: rgba(255, 255, 255, 0.60);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --text-primary: rgba(15, 23, 42, 0.85);
+  --text-secondary: rgba(15, 23, 42, 0.45);
+}
+
+/* shadcn base vars — keep so components don't break */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+  }
+}
+
+/* ─── Base Reset ──────────────────────────────────────────── */
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--void);
+  color: var(--text-primary);
+  transition: background 0.8s ease, color 0.4s ease;
+  margin: 0;
+  padding: 0;
+}
+
+/* Hide all scrollbars */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  box-sizing: border-box;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Noise / Grain Overlay ───────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+/* ─── Nebula Background ──────────────────────────────────── */
+.nebula-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.nebula-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(26, 0, 51, 0.5) 0%, transparent 70%);
+  transition: background 0.8s ease;
+}
+
+.theme-light .nebula-bg::before {
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(124, 58, 237, 0.06) 0%, transparent 70%);
+}
+
+.nebula-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 45% 40% at 85% 10%, rgba(0, 17, 43, 0.38) 0%, transparent 65%);
+  transition: background 0.8s ease;
+}
+
+.theme-light .nebula-bg::after {
+  background: radial-gradient(ellipse 45% 40% at 85% 10%, rgba(6, 182, 212, 0.05) 0%, transparent 65%);
+}
+
+/* ─── Keyframes ──────────────────────────────────────────── */
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.star-dot {
+  animation: twinkle 5s ease-in-out infinite;
+}
+
+@keyframes burn-particle {
+  0% {
+    transform: rotate(var(--angle)) translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--angle)) translateX(44px) scale(0);
+    opacity: 0;
+  }
+}
+
+.burn-particle {
+  animation: burn-particle 0.6s ease-out forwards;
+}
+
+@keyframes orb-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+/* ─── Font utilities ──────────────────────────────────────── */
+.font-syne {
+  font-family: var(--font-syne), 'Syne', sans-serif;
+}
+
+.font-dm {
+  font-family: var(--font-dm), 'DM Sans', sans-serif;
+}
+
+/* ─── Placeholder color ───────────────────────────────────── */
+.placeholder-secondary::placeholder {
+  color: var(--text-secondary);
+}
