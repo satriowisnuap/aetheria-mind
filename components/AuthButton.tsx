@@ -8,7 +8,11 @@ export default function AuthButton() {
   const { user, loading, signIn, signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (loading) return null;
+  if (loading) return (
+    <div className="fixed top-6 left-6 z-50">
+      <div className="w-2 h-2 rounded-full bg-cosmic-teal animate-pulse" />
+    </div>
+  );
 
   const displayName = user?.displayName ? (user.displayName.length > 12 ? user.displayName.slice(0, 12) + '...' : user.displayName) : '';
 

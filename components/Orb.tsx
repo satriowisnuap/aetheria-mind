@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useAnimationFrame } from 'framer-motion';
 import type { OrbConfig } from '@/lib/emotionAnalyzer';
 import { getFloatAnimation } from '@/lib/orbUtils';
@@ -38,7 +38,7 @@ const PARTICLES: Particle[] = Array.from({ length: 12 }, (_, i) => ({
   isSpiral: Math.random() > 0.5,
 }));
 
-export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, onTap, gravityWells, isMergeCandidate, mergeTargetPercent, isPaused, isHighlighted }: OrbProps) {
+export const Orb = memo(function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, onTap, gravityWells, isMergeCandidate, mergeTargetPercent, isPaused, isHighlighted }: OrbProps) {
   const [burning, setBurning] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
   const [showRing, setShowRing] = useState(false);
@@ -65,7 +65,6 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
     const vpWidth = window.innerWidth;
     const vpHeight = window.innerHeight;
     
-    // Current pixel position including drift
     const currentPxX = (posX / 100) * vpWidth + driftX.get();
     const currentPxY = (posY / 100) * vpHeight + driftY.get();
     
@@ -75,7 +74,6 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
     let dx = drift.dx;
     let dy = drift.dy;
     
-    // Gravity well pull
     gravityWells?.forEach(well => {
       const wdx = well.x - (currentPxX + config.size / 2);
       const wdy = well.y - (currentPxY + config.size / 2);
@@ -87,18 +85,11 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
       }
     });
     
-    driftX.set(accumulatedDriftX.current + dx);
-    driftY.set(accumulatedDriftY.current + dy);
-    
-    // Add floating effect
-    const floatingY = Math.sin((time / 1000 + delay) * (Math.PI * 2 / duration)) * 9 - 9;
-    const floatingX = Math.cos((time / 1000 + delay + 0.3) * (Math.PI * 2 / (duration * 1.2))) * 6;
-
     accumulatedDriftX.current += dx;
     accumulatedDriftY.current += dy;
     
-    driftX.set(accumulatedDriftX.current + floatingX);
-    driftY.set(accumulatedDriftY.current + floatingY);
+    driftX.set(accumulatedDriftX.current);
+    driftY.set(accumulatedDriftY.current);
   });
 
   const startLongPressTimer = useCallback((e: React.PointerEvent) => {
@@ -232,7 +223,20 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
             zIndex: 20,
           }}
         >
-          <AnimatePresence>
+          <motion.div
+            animate={isPaused ? {} : {
+              y: [0, -12, 0],
+              x: [0, 6, 0],
+            }}
+            transition={{
+              duration: duration,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: delay,
+            }}
+            style={{ width: '100%', height: '100%', position: 'relative' }}
+          >
+            <AnimatePresence>
             {isLongPress && !burning && (
               <motion.div
                 initial={{ opacity: 0, y: 5 }}
@@ -277,6 +281,32 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
               transition: 'box-shadow 0.3s ease',
             }}
           >
+            {/* 3D Glassy Reflection */}
+            <div 
+              style={{
+                position: 'absolute',
+                top: '15%',
+                left: '15%',
+                width: '30%',
+                height: '30%',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 80%)',
+                borderRadius: '50%',
+                pointerEvents: 'none',
+              }}
+            />
+            {/* Downward Anti-gravity Shadow */}
+            <div 
+              style={{
+                position: 'absolute',
+                bottom: -20,
+                left: '10%',
+                right: '10%',
+                height: '20px',
+                background: 'radial-gradient(ellipse, rgba(0,0,0,0.2) 0%, transparent 70%)',
+                filter: 'blur(8px)',
+                pointerEvents: 'none',
+              }}
+            />
             <p
               style={{
                 fontFamily: 'var(--font-dm)',
@@ -369,8 +399,11 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
               />
             )}
           </AnimatePresence>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
   );
-}
+});
+
+export default Orb;

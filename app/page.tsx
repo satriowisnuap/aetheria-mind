@@ -23,7 +23,7 @@ import { audioEngine } from '@/lib/audioEngine';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
-  const { orbs, addOrb, updateOrbPosition, burnOrb, mergeOrbs, loading } = useOrbs();
+  const { orbs, addOrb, updateOrbPosition, burnOrb, mergeOrbs, loading, syncError } = useOrbs();
 
   const handleAddOrb = useCallback((text: string) => {
     addOrb(text);
@@ -321,7 +321,11 @@ export default function Home() {
           <div className="fixed inset-0 z-10" aria-label="Thought canvas">
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center z-50">
-                <div className="w-8 h-8 rounded-full bg-cyan-400 opacity-50 animate-ping" />
+                <motion.div 
+                  animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.5, 0.2] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-12 h-12 rounded-full border-2 border-cosmic-teal blur-md"
+                />
               </div>
             )}
 
@@ -376,7 +380,7 @@ export default function Home() {
             </AnimatePresence>
           </div>
 
-          <AetherInput onSubmit={handleAddOrb} />
+          <AetherInput onSubmit={handleAddOrb} orbCount={orbs.length} />
 
           <AnimatePresence>
             {selectedOrb && (
@@ -388,9 +392,24 @@ export default function Home() {
             )}
           </AnimatePresence>
 
+          <AnimatePresence>
+            {syncError && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full bg-void/60 backdrop-blur-md border border-glass-border shadow-xl text-[var(--text-primary)]"
+                style={{ fontFamily: 'var(--font-dm)', fontSize: '12px' }}
+              >
+                {syncError}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <ConstellationToggle 
             active={constellationMode} 
             onToggle={() => setConstellationMode(!constellationMode)} 
+            aria-label="Toggle constellation mode"
           />
 
           <HandTracker active={handMode} onGesture={handleGesture} />
@@ -405,6 +424,7 @@ export default function Home() {
                 setActiveGesture('none');
               }
             }} 
+            aria-label="Toggle hand tracking mode"
           />
 
           {handMode && fingerPos && (

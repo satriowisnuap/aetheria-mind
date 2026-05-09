@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { analyzeEmotion, type OrbConfig } from '@/lib/emotionAnalyzer';
@@ -22,8 +22,16 @@ export interface OrbData {
 export function useOrbs() {
   const [orbs, setOrbs] = useState<OrbData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth();
   const updateTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+
+  useEffect(() => {
+    if (syncError) {
+      const timer = setTimeout(() => setSyncError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [syncError]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -55,6 +63,7 @@ export function useOrbs() {
         setLoading(false);
       }, (error) => {
         console.error("Error fetching orbs:", error);
+        setSyncError("sync lost — your thoughts are safe locally");
         setLoading(false);
       });
 
@@ -112,6 +121,7 @@ export function useOrbs() {
           await updateDoc(orbRef, { posX: x, posY: y });
         } catch (error) {
           console.error("Error updating orb position:", error);
+          setSyncError("sync lost — your thoughts are safe locally");
         }
       }, 400);
     }
@@ -161,11 +171,14 @@ export function useOrbs() {
 
     if (user) {
       try {
-        await deleteDoc(doc(db, 'users', user.uid, 'orbs', id1));
-        await deleteDoc(doc(db, 'users', user.uid, 'orbs', id2));
-        await setDoc(doc(db, 'users', user.uid, 'orbs', newId), mergedOrb);
+        const batch = writeBatch(db);
+        batch.delete(doc(db, 'users', user.uid, 'orbs', id1));
+        batch.delete(doc(db, 'users', user.uid, 'orbs', id2));
+        batch.set(doc(db, 'users', user.uid, 'orbs', newId), mergedOrb);
+        await batch.commit();
       } catch (error) {
         console.error("Error merging orbs:", error);
+        setSyncError("sync lost — your thoughts are safe locally");
       }
     } else {
       setOrbs(prev => {
@@ -177,5 +190,5 @@ export function useOrbs() {
     }
   }, [user, orbs]);
 
-  return { orbs, addOrb, updateOrbPosition, burnOrb, mergeOrbs, loading };
+  return { orbs, addOrb, updateOrbPosition, burnOrb, mergeOrbs, loading, syncError };
 }

@@ -1,22 +1,41 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AetherInputProps {
   onSubmit: (text: string) => void;
+  orbCount: number;
 }
 
-export default function AetherInput({ onSubmit }: AetherInputProps) {
+export default function AetherInput({ onSubmit, orbCount }: AetherInputProps) {
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [viewportOffset, setViewportOffset] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const handleResize = () => {
+      if (window.visualViewport) {
+        setViewportOffset(window.innerHeight - window.visualViewport.height);
+      }
+    };
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+    };
+  }, []);
+
+  const isFull = orbCount >= 20;
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
-    if (!trimmed) return;
+    if (!trimmed || isFull) return;
 
     setSubmitting(true);
     onSubmit(trimmed);
@@ -32,7 +51,10 @@ export default function AetherInput({ onSubmit }: AetherInputProps) {
   };
 
   return (
-    <div className="fixed bottom-8 left-0 right-0 flex justify-center z-40 px-4">
+    <div 
+      className="fixed bottom-8 left-0 right-0 flex justify-center z-40 px-4"
+      style={{ transform: `translateY(-${viewportOffset}px)` }}
+    >
       <motion.div
         animate={submitting ? { scale: [1, 1.02, 1] } : {}}
         transition={{ duration: 0.3 }}
@@ -68,7 +90,9 @@ export default function AetherInput({ onSubmit }: AetherInputProps) {
             onKeyDown={handleKeyDown}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder="cast a thought into the void..."
+            placeholder={isFull ? "the void is getting full..." : "cast a thought into the void..."}
+            disabled={isFull}
+            aria-label={isFull ? "The void is full" : "Type your thought"}
             style={{
               flex: 1,
               background: 'transparent',
@@ -78,6 +102,7 @@ export default function AetherInput({ onSubmit }: AetherInputProps) {
               fontSize: '14px',
               color: 'var(--text-primary)',
               minWidth: 0,
+              opacity: isFull ? 0.5 : 1,
             }}
             className="placeholder-secondary"
             autoComplete="off"
@@ -86,9 +111,9 @@ export default function AetherInput({ onSubmit }: AetherInputProps) {
 
           <motion.button
             onClick={handleSubmit}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            disabled={!value.trim()}
+            whileHover={isFull ? {} : { scale: 1.1 }}
+            whileTap={isFull ? {} : { scale: 0.95 }}
+            disabled={!value.trim() || isFull}
             style={{
               width: 32,
               height: 32,
