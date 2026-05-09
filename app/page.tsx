@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Orb from '@/components/Orb';
 import AetherInput from '@/components/AetherInput';
@@ -9,11 +9,82 @@ import IntroAnimation from '@/components/IntroAnimation';
 import EmptyState from '@/components/EmptyState';
 import ThemeToggle from '@/components/ThemeToggle';
 import AuthButton from '@/components/AuthButton';
+import MergePrompt from '@/components/MergePrompt';
 import { useOrbs } from '@/hooks/useOrbs';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
-  const { orbs, addOrb, updateOrbPosition, burnOrb, loading } = useOrbs();
+  const { orbs, addOrb, updateOrbPosition, burnOrb, mergeOrbs, loading } = useOrbs();
+  
+  const orbPositions = useRef(new Map<string, { x: number; y: number }>());
+  const [mergeCandidate, setMergeCandidate] = useState<{ id1: string, id2: string, x: number, y: number } | null>(null);
+  const [isMerging, setIsMerging] = useState(false);
+
+  useEffect(() => {
+    const vpWidth = window.innerWidth;
+    const vpHeight = window.innerHeight;
+    orbs.forEach(orb => {
+      orbPositions.current.set(orb.id, { x: (orb.posX / 100) * vpWidth, y: (orb.posY / 100) * vpHeight });
+    });
+  }, [orbs]);
+
+  const handleUpdateOrbPosition = useCallback((id: string, xPercent: number, yPercent: number) => {
+    updateOrbPosition(id, xPercent, yPercent);
+
+    if (mergeCandidate || isMerging) return;
+
+    const vpWidth = window.innerWidth;
+    const vpHeight = window.innerHeight;
+    orbPositions.current.set(id, { x: (xPercent / 100) * vpWidth, y: (yPercent / 100) * vpHeight });
+
+    const currentOrb = orbs.find(o => o.id === id);
+    if (!currentOrb) return;
+
+    const currentCenter = {
+      x: orbPositions.current.get(id)!.x + currentOrb.config.size / 2,
+      y: orbPositions.current.get(id)!.y + currentOrb.config.size / 2
+    };
+
+    for (const [otherId, pos] of Array.from(orbPositions.current.entries())) {
+      if (otherId === id) continue;
+      const otherOrb = orbs.find(o => o.id === otherId);
+      if (!otherOrb) continue;
+
+      const otherCenter = {
+        x: pos.x + otherOrb.config.size / 2,
+        y: pos.y + otherOrb.config.size / 2
+      };
+
+      const dx = currentCenter.x - otherCenter.x;
+      const dy = currentCenter.y - otherCenter.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < (currentOrb.config.size / 2 + otherOrb.config.size / 2 + 20)) {
+        setMergeCandidate({
+          id1: id,
+          id2: otherId,
+          x: (currentCenter.x + otherCenter.x) / 2,
+          y: (currentCenter.y + otherCenter.y) / 2
+        });
+        break;
+      }
+    }
+  }, [orbs, updateOrbPosition, mergeCandidate, isMerging]);
+
+  const handleMergeConfirm = () => {
+    if (!mergeCandidate) return;
+    setIsMerging(true);
+
+    setTimeout(() => {
+      mergeOrbs(mergeCandidate.id1, mergeCandidate.id2);
+      setMergeCandidate(null);
+      setIsMerging(false);
+    }, 600);
+  };
+
+  const handleMergeCancel = () => {
+    setMergeCandidate(null);
+  };
 
   return (
     <>
@@ -42,18 +113,45 @@ export default function Home() {
             </AnimatePresence>
 
             <AnimatePresence>
-              {!loading && orbs.map((orb) => (
-                <Orb
-                  key={orb.id}
-                  id={orb.id}
-                  text={orb.text}
-                  config={orb.config}
-                  posX={orb.posX}
-                  posY={orb.posY}
-                  onBurn={burnOrb}
-                  onUpdatePosition={updateOrbPosition}
+              {mergeCandidate && !isMerging && (
+                <MergePrompt
+                  key="merge-prompt"
+                  x={mergeCandidate.x}
+                  y={mergeCandidate.y}
+                  onConfirm={handleMergeConfirm}
+                  onCancel={handleMergeCancel}
                 />
-              ))}
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {!loading && orbs.map((orb) => {
+                const isMergeTarget = mergeCandidate?.id1 === orb.id || mergeCandidate?.id2 === orb.id;
+                let targetPercent = null;
+                if (isMerging && isMergeTarget && mergeCandidate) {
+                  const vpWidth = window.innerWidth;
+                  const vpHeight = window.innerHeight;
+                  targetPercent = {
+                    x: (mergeCandidate.x / vpWidth) * 100,
+                    y: (mergeCandidate.y / vpHeight) * 100
+                  };
+                }
+
+                return (
+                  <Orb
+                    key={orb.id}
+                    id={orb.id}
+                    text={orb.text}
+                    config={orb.config}
+                    posX={orb.posX}
+                    posY={orb.posY}
+                    onBurn={burnOrb}
+                    onUpdatePosition={handleUpdateOrbPosition}
+                    isMergeCandidate={isMergeTarget && !isMerging}
+                    mergeTargetPercent={targetPercent}
+                  />
+                );
+              })}
             </AnimatePresence>
           </div>
 

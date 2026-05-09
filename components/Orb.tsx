@@ -13,6 +13,8 @@ interface OrbProps {
   posY: number;
   onBurn: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
+  isMergeCandidate?: boolean;
+  mergeTargetPercent?: { x: number; y: number } | null;
 }
 
 interface Particle {
@@ -25,7 +27,7 @@ const PARTICLES: Particle[] = Array.from({ length: 8 }, (_, i) => ({
   angle: (i / 8) * 360,
 }));
 
-export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition }: OrbProps) {
+export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, isMergeCandidate, mergeTargetPercent }: OrbProps) {
   const [burning, setBurning] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
   const { duration, delay } = getFloatAnimation();
@@ -56,34 +58,49 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
       {!burning && (
         <motion.div
           key={id}
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{
-            scale: [1, 1.04, 1],
-            opacity: 1,
-            y: [0, -18, 0],
-            x: [0, 6, -6, 0],
-          }}
+          initial={{ scale: 0, opacity: 0, left: `${posX}%`, top: `${posY}%` }}
+          animate={
+            mergeTargetPercent
+              ? {
+                  left: `${mergeTargetPercent.x}%`,
+                  top: `${mergeTargetPercent.y}%`,
+                  scale: 0,
+                  opacity: 0,
+                  x: 0,
+                  y: 0,
+                }
+              : {
+                  left: `${posX}%`,
+                  top: `${posY}%`,
+                  scale: isMergeCandidate ? [1, 1.1, 1] : [1, 1.04, 1],
+                  opacity: 1,
+                  y: [0, -18, 0],
+                  x: [0, 6, -6, 0],
+                }
+          }
           exit={{ scale: 0, opacity: 0, y: -200, transition: { duration: 0.5 } }}
           transition={{
             scale: {
-              duration: 5,
-              repeat: Infinity,
-              repeatDelay: 5,
+              duration: isMergeCandidate ? 0.4 : 5,
+              repeat: mergeTargetPercent ? 0 : Infinity,
+              repeatDelay: isMergeCandidate ? 0 : 5,
               ease: 'easeInOut',
             },
-            opacity: { duration: 0.4, type: 'spring', stiffness: 200, damping: 20, delay: 0 },
+            opacity: { duration: mergeTargetPercent ? 0.5 : 0.4 },
             y: {
-              duration,
-              repeat: Infinity,
+              duration: mergeTargetPercent ? 0.5 : duration,
+              repeat: mergeTargetPercent ? 0 : Infinity,
               ease: 'easeInOut',
-              delay,
+              delay: mergeTargetPercent ? 0 : delay,
             },
             x: {
-              duration: duration * 1.2,
-              repeat: Infinity,
+              duration: mergeTargetPercent ? 0.5 : duration * 1.2,
+              repeat: mergeTargetPercent ? 0 : Infinity,
               ease: 'easeInOut',
-              delay: delay + 0.3,
+              delay: mergeTargetPercent ? 0 : delay + 0.3,
             },
+            left: { duration: mergeTargetPercent ? 0.5 : 0, ease: 'backIn' },
+            top: { duration: mergeTargetPercent ? 0.5 : 0, ease: 'backIn' },
           }}
           drag
           dragMomentum
@@ -92,8 +109,6 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
           onDragEnd={handleDragEnd}
           style={{
             position: 'absolute',
-            left: `${posX}%`,
-            top: `${posY}%`,
             width: config.size,
             height: config.size,
             cursor: 'grab',
@@ -138,6 +153,22 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
               {text}
             </p>
           </div>
+
+          {mergeTargetPercent && (
+            <motion.div
+              initial={{ opacity: 0, scale: 1 }}
+              animate={{ opacity: [0, 1, 0], scale: [1, 2, 3] }}
+              transition={{ duration: 0.6 }}
+              style={{
+                position: 'absolute',
+                inset: -40,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 70%)',
+                zIndex: 30,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
 
           {showParticles && (
             <div
