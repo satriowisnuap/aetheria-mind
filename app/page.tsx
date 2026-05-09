@@ -12,6 +12,8 @@ import AuthButton from '@/components/AuthButton';
 import MergePrompt from '@/components/MergePrompt';
 import OrbDetailPanel from '@/components/OrbDetailPanel';
 import { useOrbs, type OrbData } from '@/hooks/useOrbs';
+import ConstellationLayer from '@/components/ConstellationLayer';
+import ConstellationToggle from '@/components/ConstellationToggle';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
@@ -23,6 +25,7 @@ export default function Home() {
   const [selectedOrb, setSelectedOrb] = useState<OrbData | null>(null);
   const [gravityWells, setGravityWells] = useState<{ id: string; x: number; y: number }[]>([]);
   const [isOrbInHorizon, setIsOrbInHorizon] = useState(false);
+  const [constellationMode, setConstellationMode] = useState(false);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const newWell = {
@@ -128,6 +131,11 @@ export default function Home() {
             style={{ cursor: 'crosshair' }}
           />
           <StarField />
+          <ConstellationLayer 
+            orbs={orbs} 
+            orbPositions={orbPositions.current} 
+            active={constellationMode} 
+          />
           <ThemeToggle />
 
           <AnimatePresence>
@@ -254,6 +262,11 @@ export default function Home() {
               />
             )}
           </AnimatePresence>
+
+          <ConstellationToggle 
+            active={constellationMode} 
+            onToggle={() => setConstellationMode(!constellationMode)} 
+          />
         </>
       )}
     </>

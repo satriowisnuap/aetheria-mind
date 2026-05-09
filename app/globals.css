@@ -175,3 +175,27 @@ body::after {
 .placeholder-secondary::placeholder {
   color: var(--text-secondary);
 }
+
+/* ─── Constellation Animations ───────────────────────────── */
+
+@keyframes dashMove {
+  from {
+    stroke-dashoffset: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.constellation-line {
+  stroke: var(--nebula-violet);
+  stroke-width: 1px;
+  stroke-dasharray: 4 8;
+  opacity: 0.2;
+  animation: dashMove 20s linear infinite;
+  pointer-events: none;
+}
+
+.theme-light .constellation-line {
+  opacity: 0.3;
+}
