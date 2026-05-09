@@ -9,9 +9,10 @@ interface OrbProps {
   id: string;
   text: string;
   config: OrbConfig;
-  initialX: number;
-  initialY: number;
+  posX: number;
+  posY: number;
   onBurn: (id: string) => void;
+  onUpdatePosition: (id: string, x: number, y: number) => void;
 }
 
 interface Particle {
@@ -24,7 +25,7 @@ const PARTICLES: Particle[] = Array.from({ length: 8 }, (_, i) => ({
   angle: (i / 8) * 360,
 }));
 
-export default function Orb({ id, text, config, initialX, initialY, onBurn }: OrbProps) {
+export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition }: OrbProps) {
   const [burning, setBurning] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
   const { duration, delay } = getFloatAnimation();
@@ -32,14 +33,22 @@ export default function Orb({ id, text, config, initialX, initialY, onBurn }: Or
   const constraintsRef = useRef(null);
 
   const handleDragEnd = useCallback(
-    (_: unknown, info: { point: { y: number }; offset: { y: number } }) => {
+    (_: unknown, info: { point: { x: number; y: number }; offset: { x: number; y: number } }) => {
       if (info.offset.y < -80) {
         setShowParticles(true);
         setBurning(true);
         setTimeout(() => onBurn(id), 600);
+      } else {
+        const vpWidth = window.innerWidth;
+        const vpHeight = window.innerHeight;
+        const startX = (posX / 100) * vpWidth;
+        const startY = (posY / 100) * vpHeight;
+        const newX = startX + info.offset.x;
+        const newY = startY + info.offset.y;
+        onUpdatePosition(id, (newX / vpWidth) * 100, (newY / vpHeight) * 100);
       }
     },
-    [id, onBurn]
+    [id, onBurn, onUpdatePosition, posX, posY]
   );
 
   return (
@@ -83,8 +92,8 @@ export default function Orb({ id, text, config, initialX, initialY, onBurn }: Or
           onDragEnd={handleDragEnd}
           style={{
             position: 'absolute',
-            left: initialX,
-            top: initialY,
+            left: `${posX}%`,
+            top: `${posY}%`,
             width: config.size,
             height: config.size,
             cursor: 'grab',
