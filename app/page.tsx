@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Orb from '@/components/Orb';
 import AetherInput from '@/components/AetherInput';
 import StarField from '@/components/StarField';
@@ -21,6 +21,28 @@ export default function Home() {
   const [mergeCandidate, setMergeCandidate] = useState<{ id1: string, id2: string, x: number, y: number } | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [selectedOrb, setSelectedOrb] = useState<OrbData | null>(null);
+  const [gravityWells, setGravityWells] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [isOrbInHorizon, setIsOrbInHorizon] = useState(false);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    const newWell = {
+      id: Math.random().toString(36).substring(2, 9),
+      x: e.clientX,
+      y: e.clientY,
+    };
+    setGravityWells(prev => [...prev, newWell]);
+    setTimeout(() => {
+      setGravityWells(prev => prev.filter(w => w.id !== newWell.id));
+    }, 8000);
+  }, []);
+
+  useEffect(() => {
+    const checkHorizon = () => {
+      const inHorizon = orbs.some(orb => (orb.posY / 100) < 0.15);
+      setIsOrbInHorizon(inHorizon);
+    };
+    checkHorizon();
+  }, [orbs]);
 
   useEffect(() => {
     const vpWidth = window.innerWidth;
@@ -99,9 +121,71 @@ export default function Home() {
       {!showIntro && (
         <>
           <AuthButton />
-          <div className="nebula-bg" aria-hidden="true" />
+          <div 
+            className="nebula-bg" 
+            aria-hidden="true" 
+            onDoubleClick={handleDoubleClick}
+            style={{ cursor: 'crosshair' }}
+          />
           <StarField />
           <ThemeToggle />
+
+          <AnimatePresence>
+            {isOrbInHorizon && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed left-1/2 -translate-x-1/2 w-[60%] h-[1px] z-20 pointer-events-none"
+                style={{
+                  top: '15%',
+                  background: 'linear-gradient(90deg, transparent, var(--nebula-violet, #A855F7), transparent)',
+                  opacity: 0.3,
+                }}
+              >
+                <span 
+                  className="absolute right-0 -top-4"
+                  style={{
+                    fontFamily: 'var(--font-dm)',
+                    fontSize: '9px',
+                    color: 'var(--text-secondary)',
+                    opacity: 0.5,
+                  }}
+                >
+                  event horizon
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {gravityWells.map(well => (
+              <motion.div
+                key={well.id}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ 
+                  scale: [1, 2], 
+                  opacity: [0.3, 0] 
+                }}
+                transition={{ 
+                  duration: 1.5, 
+                  repeat: Infinity,
+                  ease: "easeOut"
+                }}
+                style={{
+                  position: 'fixed',
+                  left: well.x - 50,
+                  top: well.y - 50,
+                  width: 100,
+                  height: 100,
+                  borderRadius: '50%',
+                  border: '2px solid var(--cosmic-teal, #2DD4BF)',
+                  zIndex: 5,
+                  pointerEvents: 'none',
+                }}
+              />
+            ))}
+          </AnimatePresence>
 
           <div className="fixed inset-0 z-10" aria-label="Thought canvas">
             {loading && (
@@ -150,6 +234,7 @@ export default function Home() {
                     onBurn={burnOrb}
                     onUpdatePosition={handleUpdateOrbPosition}
                     onTap={() => setSelectedOrb(orb)}
+                    gravityWells={gravityWells}
                     isMergeCandidate={isMergeTarget && !isMerging}
                     mergeTargetPercent={targetPercent}
                   />

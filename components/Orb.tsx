@@ -1,9 +1,10 @@
 'use client';
 
 import { useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useAnimationFrame } from 'framer-motion';
 import type { OrbConfig } from '@/lib/emotionAnalyzer';
 import { getFloatAnimation } from '@/lib/orbUtils';
+import { calculateDrift } from '@/lib/orbPhysics';
 
 interface OrbProps {
   id: string;
@@ -14,6 +15,7 @@ interface OrbProps {
   onBurn: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
   onTap?: () => void;
+  gravityWells?: { id: string; x: number; y: number }[];
   isMergeCandidate?: boolean;
   mergeTargetPercent?: { x: number; y: number } | null;
 }
@@ -34,17 +36,68 @@ const PARTICLES: Particle[] = Array.from({ length: 12 }, (_, i) => ({
   isSpiral: Math.random() > 0.5,
 }));
 
-export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, onTap, isMergeCandidate, mergeTargetPercent }: OrbProps) {
+export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosition, onTap, gravityWells, isMergeCandidate, mergeTargetPercent }: OrbProps) {
   const [burning, setBurning] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
   const [showRing, setShowRing] = useState(false);
   const [isLongPress, setIsLongPress] = useState(false);
+  const [atHorizon, setAtHorizon] = useState(false);
+  
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
+  const isDragging = useRef(false);
+  const frameRef = useRef(0);
+  const accumulatedDriftX = useRef(0);
+  const accumulatedDriftY = useRef(0);
+
+  const driftX = useMotionValue(0);
+  const driftY = useMotionValue(0);
   
   const { duration, delay } = getFloatAnimation();
-  const y = useMotionValue(0);
   const constraintsRef = useRef(null);
+
+  useAnimationFrame((time) => {
+    if (isDragging.current || burning || mergeTargetPercent) return;
+    
+    frameRef.current++;
+    const vpWidth = window.innerWidth;
+    const vpHeight = window.innerHeight;
+    
+    // Current pixel position including drift
+    const currentPxX = (posX / 100) * vpWidth + driftX.get();
+    const currentPxY = (posY / 100) * vpHeight + driftY.get();
+    
+    const drift = calculateDrift(currentPxY, vpHeight, frameRef.current);
+    if (drift.isEventHorizon !== atHorizon) setAtHorizon(drift.isEventHorizon);
+    
+    let dx = drift.dx;
+    let dy = drift.dy;
+    
+    // Gravity well pull
+    gravityWells?.forEach(well => {
+      const wdx = well.x - (currentPxX + config.size / 2);
+      const wdy = well.y - (currentPxY + config.size / 2);
+      const dist = Math.sqrt(wdx * wdx + wdy * wdy);
+      if (dist < 200) {
+        const pull = (200 - dist) / 200 * 1.2;
+        dx += (wdx / dist) * pull;
+        dy += (wdy / dist) * pull;
+      }
+    });
+    
+    driftX.set(accumulatedDriftX.current + dx);
+    driftY.set(accumulatedDriftY.current + dy);
+    
+    // Add floating effect
+    const floatingY = Math.sin((time / 1000 + delay) * (Math.PI * 2 / duration)) * 9 - 9;
+    const floatingX = Math.cos((time / 1000 + delay + 0.3) * (Math.PI * 2 / (duration * 1.2))) * 6;
+
+    accumulatedDriftX.current += dx;
+    accumulatedDriftY.current += dy;
+    
+    driftX.set(accumulatedDriftX.current + floatingX);
+    driftY.set(accumulatedDriftY.current + floatingY);
+  });
 
   const startLongPressTimer = useCallback((e: React.PointerEvent) => {
     dragStartPos.current = { x: e.clientX, y: e.clientY };
@@ -77,6 +130,7 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
     (_: unknown, info: { point: { x: number; y: number }; offset: { x: number; y: number } }) => {
       clearLongPressTimer();
       setIsLongPress(false);
+      isDragging.current = false;
       
       if (info.offset.y < -80) {
         setShowParticles(true);
@@ -86,14 +140,21 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
       } else {
         const vpWidth = window.innerWidth;
         const vpHeight = window.innerHeight;
-        const startX = (posX / 100) * vpWidth;
-        const startY = (posY / 100) * vpHeight;
+        // Calculate new position including the drift that happened
+        const startX = (posX / 100) * vpWidth + driftX.get();
+        const startY = (posY / 100) * vpHeight + driftY.get();
         const newX = startX + info.offset.x;
         const newY = startY + info.offset.y;
+        
+        // Reset drift offsets and update the base percentage position
+        accumulatedDriftX.current = 0;
+        accumulatedDriftY.current = 0;
+        driftX.set(0);
+        driftY.set(0);
         onUpdatePosition(id, (newX / vpWidth) * 100, (newY / vpHeight) * 100);
       }
     },
-    [id, onBurn, onUpdatePosition, posX, posY, clearLongPressTimer]
+    [id, onBurn, onUpdatePosition, posX, posY, clearLongPressTimer, driftX, driftY]
   );
 
   return (
@@ -117,8 +178,6 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
                   top: `${posY}%`,
                   scale: isMergeCandidate ? [1, 1.1, 1] : [1, 1.04, 1],
                   opacity: 1,
-                  y: [0, -18, 0],
-                  x: [0, 6, -6, 0],
                 }
           }
           exit={{ scale: 0, opacity: 0, y: -200, transition: { duration: 0.5 } }}
@@ -149,7 +208,10 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
           dragMomentum
           dragTransition={{ bounceStiffness: 80, bounceDamping: 15 }}
           whileDrag={{ scale: 1.08 }}
-          onDragStart={clearLongPressTimer}
+          onDragStart={() => {
+            isDragging.current = true;
+            clearLongPressTimer();
+          }}
           onDrag={clearLongPressTimer}
           onDragEnd={handleDragEnd}
           onPointerDown={startLongPressTimer}
@@ -157,6 +219,10 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
           onPointerCancel={clearLongPressTimer}
           style={{
             position: 'absolute',
+            left: `${posX}%`,
+            top: `${posY}%`,
+            x: driftX,
+            y: driftY,
             width: config.size,
             height: config.size,
             cursor: 'grab',
@@ -197,6 +263,8 @@ export default function Orb({ id, text, config, posX, posY, onBurn, onUpdatePosi
               border: `1px solid ${config.borderColor}99`,
               boxShadow: isLongPress 
                 ? `0 0 60px ${config.glowColor}` 
+                : atHorizon
+                ? `0 0 40px ${config.glowColor}, 0 0 80px ${config.glowColor}66`
                 : `0 0 20px ${config.glowColor}, 0 0 60px ${config.glowColor}33`,
               display: 'flex',
               alignItems: 'center',
