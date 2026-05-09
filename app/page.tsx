@@ -16,11 +16,24 @@ import ConstellationLayer from '@/components/ConstellationLayer';
 import ConstellationToggle from '@/components/ConstellationToggle';
 import HandTracker from '@/components/HandTracker';
 import HandModeToggle from '@/components/HandModeToggle';
+import SoundscapeEngine from '@/components/SoundscapeEngine';
+import MuteToggle from '@/components/MuteToggle';
 import { type GestureType } from '@/hooks/useHandTracking';
+import { audioEngine } from '@/lib/audioEngine';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
   const { orbs, addOrb, updateOrbPosition, burnOrb, mergeOrbs, loading } = useOrbs();
+
+  const handleAddOrb = useCallback((text: string) => {
+    addOrb(text);
+    audioEngine.playChime();
+  }, [addOrb]);
+
+  const handleBurnOrb = useCallback((id: string) => {
+    burnOrb(id);
+    audioEngine.playBurn();
+  }, [burnOrb]);
   
   const orbPositions = useRef(new Map<string, { x: number; y: number }>());
   const [mergeCandidate, setMergeCandidate] = useState<{ id1: string, id2: string, x: number, y: number } | null>(null);
@@ -114,6 +127,7 @@ export default function Home() {
   const handleMergeConfirm = () => {
     if (!mergeCandidate) return;
     setIsMerging(true);
+    audioEngine.playMerge();
 
     setTimeout(() => {
       mergeOrbs(mergeCandidate.id1, mergeCandidate.id2);
@@ -209,7 +223,7 @@ export default function Home() {
           const vy = (last.y - first.y) / (fingerHistory.current.length - 1); 
           
           if (vy < -8) { // fast upward throw
-            burnOrb(grabbedOrbId);
+            handleBurnOrb(grabbedOrbId);
           }
         }
         setGrabbedOrbId(null);
@@ -219,7 +233,7 @@ export default function Home() {
     
     lastGesture.current = gesture;
 
-  }, [orbs, grabbedOrbId, highlightedOrbId, updateOrbPosition, burnOrb]);
+  }, [orbs, grabbedOrbId, highlightedOrbId, updateOrbPosition, handleBurnOrb]);
 
   return (
     <>
@@ -244,6 +258,7 @@ export default function Home() {
             orbPositions={orbPositions.current} 
             active={constellationMode} 
           />
+          <SoundscapeEngine orbCount={orbs.length} />
           <ThemeToggle />
 
           <AnimatePresence>
@@ -347,7 +362,7 @@ export default function Home() {
                     config={orb.config}
                     posX={orb.posX}
                     posY={orb.posY}
-                    onBurn={burnOrb}
+                    onBurn={handleBurnOrb}
                     onUpdatePosition={handleUpdateOrbPosition}
                     onTap={() => setSelectedOrb(orb)}
                     gravityWells={gravityWells}
@@ -361,14 +376,14 @@ export default function Home() {
             </AnimatePresence>
           </div>
 
-          <AetherInput onSubmit={addOrb} />
+          <AetherInput onSubmit={handleAddOrb} />
 
           <AnimatePresence>
             {selectedOrb && (
               <OrbDetailPanel
                 orb={selectedOrb}
                 onClose={() => setSelectedOrb(null)}
-                onBurn={burnOrb}
+                onBurn={handleBurnOrb}
               />
             )}
           </AnimatePresence>
@@ -412,6 +427,8 @@ export default function Home() {
               </span>
             </div>
           )}
+
+          <MuteToggle />
         </>
       )}
     </>
