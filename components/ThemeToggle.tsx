@@ -13,10 +13,10 @@ export default function ThemeToggle() {
       <AnimatePresence>
         {showTooltip && (
           <motion.span
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            className="absolute -top-9 font-dm text-xs tracking-wider whitespace-nowrap px-2 py-1 rounded-md"
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            className="absolute right-full mr-4 top-1/2 -translate-y-1/2 font-dm text-xs tracking-wider whitespace-nowrap px-2 py-1 rounded-md"
             style={{
               color: 'var(--text-secondary)',
               background: 'var(--glass-white)',
