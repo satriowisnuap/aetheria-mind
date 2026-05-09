@@ -8,6 +8,8 @@ import StarField from '@/components/StarField';
 import IntroAnimation from '@/components/IntroAnimation';
 import EmptyState from '@/components/EmptyState';
 import ThemeToggle from '@/components/ThemeToggle';
+import AuthButton from '@/components/AuthButton';
+import { useAuth } from '@/hooks/useAuth';
 import { analyzeEmotion } from '@/lib/emotionAnalyzer';
 import { getRandomOrbPosition, generateId } from '@/lib/orbUtils';
 
@@ -22,6 +24,7 @@ interface OrbData {
 export default function Home() {
   const [orbs, setOrbs] = useState<OrbData[]>([]);
   const [showIntro, setShowIntro] = useState(true);
+  const { user } = useAuth();
 
   const addOrb = useCallback((text: string) => {
     const config = analyzeEmotion(text);
@@ -50,6 +53,7 @@ export default function Home() {
 
       {!showIntro && (
         <>
+          <AuthButton />
           <div className="nebula-bg" aria-hidden="true" />
           <StarField />
           <ThemeToggle />
